@@ -1,0 +1,155 @@
+#!/usr/bin/env groovy
+
+/********************************************************************************
+title            : jenkinsfile
+description      : Script for managing CI/CD pipeline for 
+author           : Akhil KM
+date             : 2018/12/25
+version          : 0.1
+usage            : Jenkins File
+notes            : Can maintain in the SCM repository along with application code
+jenkins_version  : 2.107.2 and above
+*********************************************************************************/
+
+/***************************************
+Start of defining Global Variables
+****************************************/
+def runParallel = true
+gitCredentialsId = "93277861-bee1-413e-8ea6-9b926045b022"
+
+
+// modules format ["moduleName", "gitBranch", "gitRepository"]
+modules = [["repo1", "branch", "cusom-folder"], 
+           ["repo2", "branch", "cusom-folder"], 
+           ["repo3", "branch", "cusom-folder"], 
+           ["repo4", "branch", "cusom-folder"], 
+           ["repo5", "branch", "cusom-folder"]]
+
+cicdRepos = [["cicd-secure-repo", "prod", "cicd-secure-repo"]]
+
+if (DEPLOY_MODULE_NAME != "full_deployment") {
+  flag=0
+  for (module in modules) {
+    if (module[0] == DEPLOY_MODULE_NAME) {
+        modules = [module]
+        flag=1
+      }
+    }
+  if (flag == 0) {
+    println "Entered module is not valid, process aborting!!!"
+    System.exit(1)
+  }
+}
+
+/***************************************
+End of defining Global Variables
+****************************************/
+
+/*******************************************
+Start of functions for main pipeline script
+********************************************/
+node('master') {
+
+// Input stage
+  stage('Input') {
+    dir("cicd-repo"){
+      git credentialsId: gitCredentialsId, url: "git@github.com:org/cicd-repo.git", branch: "pipeline"
+    }
+    sh "chmod +x ./cicd-repo/build-scripts/input.sh"
+    sh "./cicd-repo/build-scripts/input.sh"
+  }
+
+// Git clone stages
+  gitbuildStages = gitprepareBuildStages()
+
+  if (runParallel) {
+    stage "Git Clone"
+    parallel(gitbuildStages)
+  } 
+
+// Initialization stage
+  stage('Initialize') {
+    sh "chmod +x ./icd-repo/build-scripts/initialBuild.sh"
+    sh  "./icd-repo/build-scripts/initialBuild.sh"
+  }
+
+// Build stages
+  buildStages = prepareBuildStages()
+
+  if (runParallel) {
+    stage "Build"
+    parallel(buildStages)
+  }
+
+// PostBuild stage
+  stage('PostBuild') {
+    mail bcc: '', body: '''$DEFAULT_CONTENT
+Deployment from jenkins ::  $DEPLOY_MODULE_NAME''', cc: '', from: '', replyTo: '$DEFAULT_REPLYTO', subject: '$DEFAULT_SUBJECT', to: 'akhilu011@gmail.com'
+  }
+
+}
+/*******************************************
+End of functions for main pipeline script
+********************************************/
+
+/***********************************
+Start of functions for git pipeline
+***********************************/
+def gitprepareBuildStages() {
+
+	def gitbuildStages = [:]
+
+  for (module in modules) {
+    gitbuildStages.put(module[0], gitprepareOneBuildStage(module[0], module[1], module[2]))
+  }
+
+  for (module in cicdRepos) {
+    gitbuildStages.put(module[0], gitprepareOneBuildStage(module[0], module[1], module[2]))
+  }
+
+  return gitbuildStages
+
+}  
+
+def gitprepareOneBuildStage(String module, String branch, String gitPath) {
+
+  return {
+    stage("Git: ${module}${branch}") {
+      dir(module){
+        git credentialsId: gitCredentialsId, url: "git@github.com:org/${gitPath}.git", branch: branch
+      }
+    }
+  }
+
+}
+/***********************************
+End of functions for git pipeline
+***********************************/
+
+/***********************************
+Start of functions for build pipeline
+***********************************/
+def prepareBuildStages() {
+
+  def buildStages = [:]
+
+  for (module in modules) {
+    buildStages.put(module[0], prepareOneBuildStage(module[0]))
+  }
+
+  return buildStages
+}  
+
+def prepareOneBuildStage(String module) {
+
+  return {
+    stage(module) {
+      sh "chmod +x ./cicd-repo/build-scripts/build.sh"
+      sh  "./cicd-repo/build-scripts/build.sh ${module}"
+    }
+  }
+
+}
+/***********************************
+End of functions for build pipeline
+***********************************/
