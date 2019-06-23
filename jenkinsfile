@@ -48,9 +48,11 @@ End of defining Global Variables
 /*******************************************
 Start of functions for main pipeline script
 ********************************************/
-node('master') {
+
 
 // Input stage
+node('master') {
+
   stage('Input') {
     dir("cicd-repo"){
       git credentialsId: gitCredentialsId, url: "git@github.com:org/cicd-repo.git", branch: "pipeline"
@@ -58,6 +60,8 @@ node('master') {
     sh "chmod +x ./cicd-repo/build-scripts/input.sh"
     sh "./cicd-repo/build-scripts/input.sh"
   }
+
+}
 
 // Git clone stages
   gitbuildStages = gitprepareBuildStages()
@@ -68,10 +72,14 @@ node('master') {
   } 
 
 // Initialization stage
+node('master') {
+
   stage('Initialize') {
-    sh "chmod +x ./icd-repo/build-scripts/initialBuild.sh"
-    sh  "./icd-repo/build-scripts/initialBuild.sh"
+    sh "chmod +x ./cicd-repo/build-scripts/initialBuild.sh"
+    sh  "./cicd-repo/build-scripts/initialBuild.sh"
   }
+
+}
 
 // Build stages
   buildStages = prepareBuildStages()
@@ -82,12 +90,15 @@ node('master') {
   }
 
 // PostBuild stage
+node('master') {
+
   stage('PostBuild') {
     mail bcc: '', body: '''$DEFAULT_CONTENT
 Deployment from jenkins ::  $DEPLOY_MODULE_NAME''', cc: '', from: '', replyTo: '$DEFAULT_REPLYTO', subject: '$DEFAULT_SUBJECT', to: 'akhilu011@gmail.com'
   }
 
 }
+
 /*******************************************
 End of functions for main pipeline script
 ********************************************/
@@ -114,9 +125,11 @@ def gitprepareBuildStages() {
 def gitprepareOneBuildStage(String module, String branch, String gitPath) {
 
   return {
-    stage("Git: ${module}${branch}") {
-      dir(module){
-        git credentialsId: gitCredentialsId, url: "git@github.com:org/${gitPath}.git", branch: branch
+    node('master') {
+      stage("Git: ${module}${branch}") {
+        dir(module){
+          git credentialsId: gitCredentialsId, url: "git@github.com:org/${gitPath}.git", branch: branch
+        }
       }
     }
   }
@@ -143,9 +156,12 @@ def prepareBuildStages() {
 def prepareOneBuildStage(String module) {
 
   return {
-    stage(module) {
-      sh "chmod +x ./cicd-repo/build-scripts/build.sh"
-      sh  "./cicd-repo/build-scripts/build.sh ${module}"
+    node('master') {
+      stage(module) {
+	sh "echo $PWD"
+        sh "chmod +x ./cicd-repo/build-scripts/build.sh"
+        sh  "./cicd-repo/build-scripts/build.sh ${module}"
+      }
     }
   }
 
